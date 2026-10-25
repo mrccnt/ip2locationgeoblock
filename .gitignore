@@ -1,0 +1,11 @@
+# Generated reports
+/reports/
+
+# Downloaded database directory (make update-db)
+/geo/
+
+# IP2Location database files are licensed separately and must not be committed
+*.CSV
+*.csv
+*.BIN
+*.zip

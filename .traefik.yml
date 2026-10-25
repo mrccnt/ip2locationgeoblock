@@ -1,0 +1,9 @@
+displayName: IP2Location GeoBlock
+type: middleware
+import: github.com/mrccnt/ip2locationgeoblock
+summary: Blocks or allows requests by country code using the IP2Location LITE CSV database (https://lite.ip2location.com).
+
+testData:
+  databaseFilePath: /plugins/IP2LOCATION-LITE-DB1.IPV6.CSV
+  countries: "RU,CN"
+  mode: "block"

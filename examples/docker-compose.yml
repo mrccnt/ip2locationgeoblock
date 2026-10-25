@@ -1,0 +1,84 @@
+# Local test setup: Traefik with the plugin loaded from source.
+#
+#   make demo-up      # generate the test database and start everything
+#   make demo-test    # run the request checks
+#   make demo-logs    # follow the Traefik log (plugin output)
+#   make demo-down    # stop and remove the containers
+#
+# Requests go to http://localhost:8080 with a Host header, e.g.:
+#   curl -H 'Host: block.localhost' -H 'X-Forwarded-For: 198.51.100.7' http://localhost:8080/
+name: ip2locationgeoblock-demo
+
+services:
+  traefik:
+    image: traefik:v3 # pin an exact version outside of local testing
+    ports:
+      - "8080:80"   # HTTP entrypoint
+      - "8081:8080" # dashboard: http://localhost:8081
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      # Plugin from source. Only the files Traefik needs are mounted
+      # (the path must match moduleName in traefik.yml).
+      - ../ip2locationgeoblock.go:/plugins-local/src/github.com/mrccnt/ip2locationgeoblock/ip2locationgeoblock.go:ro
+      - ../go.mod:/plugins-local/src/github.com/mrccnt/ip2locationgeoblock/go.mod:ro
+      - ../.traefik.yml:/plugins-local/src/github.com/mrccnt/ip2locationgeoblock/.traefik.yml:ro
+      # Generated test database (see gen-testdb.sh). To use the real database,
+      # mount it at the same container path instead.
+      - ./testdb/IP2LOCATION-LITE-DB1.IPV6.CSV:/plugins/IP2LOCATION-LITE-DB1.IPV6.CSV:ro
+
+  # block.localhost: block RU and CN (inline middleware)
+  whoami-block:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami-block.rule=Host(`block.localhost`)
+      - traefik.http.routers.whoami-block.entrypoints=web
+      - traefik.http.routers.whoami-block.middlewares=geo-block
+      - traefik.http.middlewares.geo-block.plugin.ip2locationgeoblock.databaseFilePath=/plugins/IP2LOCATION-LITE-DB1.IPV6.CSV
+      - traefik.http.middlewares.geo-block.plugin.ip2locationgeoblock.mode=block
+      - traefik.http.middlewares.geo-block.plugin.ip2locationgeoblock.countries=RU,CN
+      - traefik.http.middlewares.geo-block.plugin.ip2locationgeoblock.allowPrivate=false
+      - traefik.http.middlewares.geo-block.plugin.ip2locationgeoblock.trustForwardedHeader=true
+
+  # dach.localhost: only DE allowed. The middleware "geo-dach" is defined here
+  # ONCE and shared with other routers as geo-dach@docker (see dach2).
+  # Labels are only read from enabled containers (traefik.enable=true), which is
+  # why the shared definition lives on a service and not on the Traefik container.
+  whoami-dach:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami-dach.rule=Host(`dach.localhost`)
+      - traefik.http.routers.whoami-dach.entrypoints=web
+      - traefik.http.routers.whoami-dach.middlewares=geo-dach
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.databaseFilePath=/plugins/IP2LOCATION-LITE-DB1.IPV6.CSV
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.mode=allow
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.countries=DE
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.blockUnknown=true
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.allowPrivate=false
+      - traefik.http.middlewares.geo-dach.plugin.ip2locationgeoblock.trustForwardedHeader=true
+
+  # dach2.localhost: reuses the shared middleware from whoami-dach
+  whoami-dach2:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami-dach2.rule=Host(`dach2.localhost`)
+      - traefik.http.routers.whoami-dach2.entrypoints=web
+      - traefik.http.routers.whoami-dach2.middlewares=geo-dach@docker
+
+  # bypass.localhost: block CN, but let one specific IP through (allowedIPs)
+  whoami-bypass:
+    image: traefik/whoami
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami-bypass.rule=Host(`bypass.localhost`)
+      - traefik.http.routers.whoami-bypass.entrypoints=web
+      - traefik.http.routers.whoami-bypass.middlewares=geo-bypass
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.databaseFilePath=/plugins/IP2LOCATION-LITE-DB1.IPV6.CSV
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.mode=block
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.countries=CN
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.allowedIPs=192.0.2.10
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.allowPrivate=false
+      - traefik.http.middlewares.geo-bypass.plugin.ip2locationgeoblock.trustForwardedHeader=true

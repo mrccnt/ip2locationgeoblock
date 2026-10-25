@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JsonSchemaMappingsProjectConfiguration">
+    <state>
+      <map>
+        <entry key="Golangci-lint Configuration">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="Golangci-lint Configuration" />
+              <option name="relativePathToSchema" value="https://golangci-lint.run/jsonschema/golangci.jsonschema.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value=".golangci.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value="tmp/.golangci.yml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+        <entry key="SPDX 2.3">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="SPDX 2.3" />
+              <option name="relativePathToSchema" value="https://raw.githubusercontent.com/spdx/spdx-spec/refs/tags/v2.3/schemas/spdx-schema.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="reports/sbom.spdx.json" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+        <entry key="Traefik v2">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="Traefik v2" />
+              <option name="relativePathToSchema" value="https://www.schemastore.org/traefik-v2.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="traefik.yml" />
+                  </Item>
+                  <Item>
+                    <option name="path" value="examples/traefik.yml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+      </map>
+    </state>
+  </component>
+</project>

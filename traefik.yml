@@ -1,0 +1,27 @@
+# Static Traefik configuration for the local test setup.
+# NOT for production use.
+
+experimental:
+  localPlugins:
+    ip2locationgeoblock:
+      # Must match the module path in go.mod and the mount path in docker-compose.yml.
+      moduleName: github.com/mrccnt/ip2locationgeoblock
+
+entryPoints:
+  web:
+    address: ":80"
+    forwardedHeaders:
+      # TEST ONLY: lets curl spoof X-Forwarded-For so that any country can be
+      # simulated from localhost. In production, use trustedIPs instead.
+      insecure: true
+
+providers:
+  docker:
+    exposedByDefault: false
+
+api:
+  dashboard: true
+  insecure: true
+
+log:
+  level: DEBUG

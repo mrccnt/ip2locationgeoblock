@@ -1,0 +1,50 @@
+# golangci-lint v2 configuration
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - errorlint
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nolintlint
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+  settings:
+    gosec:
+      excludes:
+        - G304 # the database path is operator-provided configuration
+    misspell:
+      locale: US
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Test helpers use plain conversions and fixed fixtures.
+      - path: _test\.go
+        linters:
+          - gosec
+          - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
