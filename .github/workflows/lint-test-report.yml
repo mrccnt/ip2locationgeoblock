@@ -20,6 +20,9 @@ jobs:
   lint-test-report:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      # Total statement coverage in percent, e.g. "85.3" (empty if not available).
+      coverage: ${{ steps.coverage.outputs.percent }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -64,10 +67,16 @@ jobs:
         run: make report
 
       - name: Coverage summary
+        id: coverage
         if: ${{ !cancelled() && hashFiles('reports/coverage.txt') != '' }}
         run: |
+          pct="$(awk '/^total:/ { gsub("%", "", $3); print $3 }' reports/coverage.txt)"
+          echo "percent=${pct}" >> "$GITHUB_OUTPUT"
           {
             echo "### Test coverage"
+            echo
+            echo "**${pct}%** of statements"
+            echo
             echo '```'
             tail -n 1 reports/coverage.txt
             echo '```'
@@ -82,3 +91,50 @@ jobs:
           path: reports/
           if-no-files-found: warn
           retention-days: 30
+
+  # Publishes the coverage as badge data (coverage.json for a shields.io endpoint
+  # badge) to the "badges" branch. This is a separate job so that only this job
+  # gets write access, and none of the jobs that run third-party tools.
+  # It only runs after a successful run on a pushed branch, never for pull
+  # requests or tags. Pushing to "badges" does not trigger this workflow again.
+  coverage-badge:
+    needs: lint-test-report
+    if: ${{ github.event_name == 'push' && github.ref_type == 'branch' && needs.lint-test-report.outputs.coverage != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Publish coverage badge data
+        env:
+          COVERAGE: ${{ needs.lint-test-report.outputs.coverage }}
+        run: |
+          set -euo pipefail
+          if ! [[ "${COVERAGE}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "unexpected coverage value: '${COVERAGE}'" >&2
+            exit 1
+          fi
+          color="$(awk -v p="${COVERAGE}" 'BEGIN {
+            if (p >= 90) c = "brightgreen"
+            else if (p >= 80) c = "green"
+            else if (p >= 70) c = "yellowgreen"
+            else if (p >= 60) c = "yellow"
+            else if (p >= 50) c = "orange"
+            else c = "red"
+            print c
+          }')"
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' \
+            "${COVERAGE}" "${color}" > "${RUNNER_TEMP}/coverage.json"
+
+          # The branch only ever contains the latest coverage.json (one commit).
+          git switch --orphan badges
+          git rm -rf --quiet . 2>/dev/null || true
+          cp "${RUNNER_TEMP}/coverage.json" coverage.json
+          git add coverage.json
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit --quiet -m "Update coverage badge (${COVERAGE}%)"
+          git push --force origin badges

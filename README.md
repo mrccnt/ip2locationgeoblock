@@ -1,5 +1,7 @@
 [![Release](https://img.shields.io/github/release/mrccnt/ip2locationgeoblock.svg)](https://github.com/mrccnt/ip2locationgeoblock/releases/latest)
 [![License](https://img.shields.io/github/license/mrccnt/ip2locationgeoblock)](/LICENSE)
+[![lint-test-report](https://github.com/mrccnt/ip2locationgeoblock/actions/workflows/lint-test-report.yml/badge.svg)](https://github.com/mrccnt/ip2locationgeoblock/actions/workflows/lint-test-report.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmrccnt%2Fip2locationgeoblock%2Fbadges%2Fcoverage.json)](https://github.com/mrccnt/ip2locationgeoblock/actions/workflows/lint-test-report.yml)
 
 # IP2Location GeoBlock for Traefik
 
@@ -261,6 +263,11 @@ make report
 ```
 
 The steps after `install-tools` run independently of each other, so a failing lint step does not hide failing tests. The job still fails if any step fails. `make report` runs even if earlier steps failed, and **all files from `reports/` are uploaded as the build artifact `reports`** (retained for 30 days; download it from the workflow run page). The test coverage total is also shown in the job summary.
+
+The badges at the top of this README are fed by the workflow:
+
+- **lint-test-report** is the standard GitHub status badge. It shows whether the latest run on the default branch passed.
+- **Coverage** shows the total statement coverage. After a successful run on a pushed branch, a separate job (`coverage-badge`, the only job with write access) writes the coverage to `coverage.json` on the `badges` branch, and a [shields.io](https://shields.io) endpoint badge displays it. No external service or secret is needed. The branch only ever holds the latest value in a single commit. The badge shows an error until the first successful run on `main`/`master` has created the branch, and updates can take a few minutes because of caching. For line-by-line coverage, open `coverage.html` in the `reports` build artifact.
 
 ### Updating the database
 
