@@ -1,3 +1,7 @@
+# Jebrains configurations and AI settings
+/.idea
+/.junie
+
 # Generated reports
 /reports/
 
