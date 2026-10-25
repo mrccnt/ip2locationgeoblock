@@ -27,7 +27,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: stable
+          # Keep this in sync with the Go version golangci-lint was built with
+          # (GOLANGCI_LINT_VERSION in the Makefile). golangci-lint cannot analyze
+          # code with a Go toolchain that is newer than the one it was built with,
+          # so do not use "stable" here.
+          go-version: "1.26"
           # The module has no dependencies (no go.sum), so there is nothing to cache.
           cache: false
 
