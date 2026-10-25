@@ -11,6 +11,20 @@ GOLANGCI_LINT ?= golangci-lint
 # Output directory for all generated reports.
 REPORT_DIR ?= reports
 
+# Tools installed by "make install-tools". Override on the command line, e.g.
+#   make install-tools SYFT_VERSION=v1.55.0
+# golangci-lint and syft are installed from their official release binaries.
+# The Go-based tools default to "latest"; pin them for reproducible builds.
+GOLANGCI_LINT_VERSION   ?= v2.12.2
+SYFT_VERSION            ?= v1.54.1
+GO_JUNIT_REPORT_VERSION ?= latest
+SCC_VERSION             ?= latest
+GOCYCLO_VERSION         ?= latest
+GOVULNCHECK_VERSION     ?= latest
+
+# Directory the tools are installed into (lazily evaluated, needs Go).
+GO_BIN = $(shell go env GOPATH)/bin
+
 # Database download settings (IP2Location LITE DB1, IPv4 + IPv6, CSV).
 DB_DIR  ?= geo
 DB_ASSET ?= IP2LOCATION-LITE-DB1.IPV6.CSV.ZIP
@@ -30,7 +44,7 @@ help:
 	@echo "  report          generate all reports into $(REPORT_DIR)/"
 	@echo "                  (lint/checkstyle/sarif, tests/coverage/junit, sbom, metrics, vulnerabilities)"
 	@echo "  report-*        run a single report: lint, test, sbom, metrics, vuln"
-	@echo "  install-tools   install the optional Go-based report tools"
+	@echo "  install-tools   install all lint/report tools (golangci-lint, syft, scc, gocyclo, ...)"
 	@echo "  clean-reports   remove $(REPORT_DIR)/"
 	@echo "  demo-up         generate a test database and start the local Docker test setup"
 	@echo "  demo-test       send test requests to the local setup"
@@ -63,7 +77,7 @@ check: vet lint test
 # all reports are always generated. Failing tests are the exception: the target
 # still produces every report and then exits non-zero.
 # Optional tools (syft, scc, gocyclo, govulncheck, go-junit-report) are skipped
-# with a message when they are not installed; see "make install-tools".
+# with a message when they are not installed; "make install-tools" installs them all.
 # ---------------------------------------------------------------------------
 
 report:
@@ -153,13 +167,30 @@ report-vuln:
 clean-reports:
 	rm -rf "$(REPORT_DIR)"
 
-# Installs the Go-based optional tools. syft and golangci-lint are installed
-# separately, see https://github.com/anchore/syft and https://golangci-lint.run.
+# Installs every tool used by "make lint", "make check" and "make report" into
+# $(GO_BIN) (make sure that directory is in your PATH):
+#   golangci-lint, syft (release binaries via the official install scripts),
+#   go-junit-report, scc, gocyclo, govulncheck (via go install).
+# The install scripts are downloaded to a temporary file first, so that a failed
+# download stops make instead of being silently ignored by a pipe.
+# Note: this overwrites golangci-lint and syft binaries in $(GO_BIN).
+install_script = tmp=$$(mktemp) && trap 'rm -f "$$tmp"' EXIT && curl -sSfL "$(1)" -o "$$tmp" && sh "$$tmp" -b "$(GO_BIN)" "$(2)"
+
 install-tools:
-	go install github.com/jstemmer/go-junit-report/v2@latest
-	go install github.com/boyter/scc/v3@latest
-	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-	go install golang.org/x/vuln/cmd/govulncheck@latest
+	@command -v go >/dev/null 2>&1 || { echo "error: go is required to install the tools"; exit 1; }
+	@curl --version >/dev/null 2>&1 || { echo "error: curl is required to install the tools"; exit 1; }
+	@echo "Installing tools into $(GO_BIN) ..."
+	@$(call install_script,https://golangci-lint.run/install.sh,$(GOLANGCI_LINT_VERSION))
+	@$(call install_script,https://get.anchore.io/syft,$(SYFT_VERSION))
+	go install github.com/jstemmer/go-junit-report/v2@$(GO_JUNIT_REPORT_VERSION)
+	go install github.com/boyter/scc/v3@$(SCC_VERSION)
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@$(GOCYCLO_VERSION)
+	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	@PATH="$(GO_BIN):$$PATH"; missing=0; \
+	for t in golangci-lint syft go-junit-report scc gocyclo govulncheck; do \
+		if command -v $$t >/dev/null 2>&1; then echo "ok: $$t"; else echo "missing: $$t"; missing=1; fi; \
+	done; \
+	exit $$missing
 
 # ---------------------------------------------------------------------------
 # Local Docker test setup (see examples/)

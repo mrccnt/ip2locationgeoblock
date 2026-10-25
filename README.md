@@ -1,3 +1,6 @@
+[![Release](https://img.shields.io/github/release/mrccnt/ip2locationgeoblock.svg)](https://github.com/mrccnt/ip2locationgeoblock/releases/latest)
+[![License](https://img.shields.io/github/license/mrccnt/ip2locationgeoblock)](/LICENSE)
+
 # IP2Location GeoBlock for Traefik
 
 A Traefik middleware plugin that blocks or allows requests by country, using the IP2Location LITE CSV database.
@@ -183,7 +186,7 @@ The [Makefile](Makefile) provides the following targets:
 | `make test-race` | Run the unit tests with the race detector (requires cgo). |
 | `make check` | Run vet, lint and tests. |
 | `make report` | Generate all reports into `reports/` (see below). |
-| `make install-tools` | Install the optional Go-based report tools. |
+| `make install-tools` | Install all lint and report tools: golangci-lint, syft, go-junit-report, scc, gocyclo and govulncheck. |
 | `make clean-reports` | Remove the `reports/` directory. |
 | `make update-db` | Download the latest IP2Location LITE DB1 CSV. |
 
@@ -214,7 +217,7 @@ make test-race
 | `modules.json` | go list | Go module information. |
 | `govulncheck.txt` | [govulncheck](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) | Known vulnerabilities (needs network access). |
 
-Tools that are not installed are skipped with a message. `make install-tools` installs go-junit-report, scc, gocyclo and govulncheck via `go install`. golangci-lint and syft are installed separately (see their documentation). You can also run a single report, for example `make report-sbom` or `make report-metrics`.
+Tools that are not installed are skipped with a message. `make install-tools` installs all of them into `$(go env GOPATH)/bin` (make sure that directory is in your `PATH`): golangci-lint and syft as release binaries via their official install scripts (default versions are pinned in the Makefile and can be overridden, for example `make install-tools SYFT_VERSION=v1.55.0`), and go-junit-report, scc, gocyclo and govulncheck via `go install`. Note that this overwrites existing golangci-lint and syft binaries in that directory. You can also run a single report, for example `make report-sbom` or `make report-metrics`.
 
 ### Local test setup
 
@@ -244,6 +247,20 @@ curl -i -H 'Host: block.localhost' -H 'X-Forwarded-For: 203.0.113.7'  http://loc
 ```
 
 The setup uses `allowPrivate=false`. Without it, requests from your own machine arrive from a private Docker gateway address and would always pass. To test with the real database, mount it at `/plugins/IP2LOCATION-LITE-DB1.IPV6.CSV` instead of the generated file. The module path in `examples/traefik.yml` and the mount paths in `examples/docker-compose.yml` must match the module name in `go.mod`.
+
+### Continuous integration
+
+The GitHub Actions workflow [`lint-test-report`](.github/workflows/lint-test-report.yml) runs on pushes to `main`/`master`, on version tags (`v*`), on pull requests and manually. It runs these steps:
+
+```sh
+make install-tools
+make check
+make lint
+make test
+make report
+```
+
+The steps after `install-tools` run independently of each other, so a failing lint step does not hide failing tests. The job still fails if any step fails. `make report` runs even if earlier steps failed, and **all files from `reports/` are uploaded as the build artifact `reports`** (retained for 30 days; download it from the workflow run page). The test coverage total is also shown in the job summary.
 
 ### Updating the database
 

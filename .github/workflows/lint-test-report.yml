@@ -1,0 +1,80 @@
+name: lint-test-report
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+# Cancel superseded runs of the same branch or pull request.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          # The module has no dependencies (no go.sum), so there is nothing to cache.
+          cache: false
+
+      # "make install-tools" installs into $(go env GOPATH)/bin.
+      - name: Add Go bin directory to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: make install-tools
+        id: install
+        run: make install-tools
+
+      # The following steps run independently of each other (as long as the tools
+      # are installed), so that one failure does not hide the others. The job
+      # still fails if any of them fails.
+      - name: make check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: make check
+
+      - name: make lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: make lint
+
+      - name: make test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: make test
+
+      # Generates all reports into reports/. Runs even if the steps above failed.
+      - name: make report
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: make report
+
+      - name: Coverage summary
+        if: ${{ !cancelled() && hashFiles('reports/coverage.txt') != '' }}
+        run: |
+          {
+            echo "### Test coverage"
+            echo '```'
+            tail -n 1 reports/coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # All reports are available as the "reports" build artifact.
+      - name: Upload reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: reports/
+          if-no-files-found: warn
+          retention-days: 30
