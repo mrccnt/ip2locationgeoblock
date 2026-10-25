@@ -48,15 +48,21 @@ type Config struct {
 	TrustForwardedHeader string `json:"trustForwardedHeader,omitempty"`
 	// StatusCode is the HTTP status returned for blocked requests (default 403).
 	StatusCode string `json:"statusCode,omitempty"`
+	// AllowMissingDatabase ("false" by default): if "true" and the database file
+	// does not exist, the middleware still starts, but passes ALL requests
+	// through unfiltered. This exists only for the Traefik Plugin Catalog
+	// validity test (testData); do not enable it in production.
+	AllowMissingDatabase string `json:"allowMissingDatabase,omitempty"`
 }
 
 // CreateConfig creates the default configuration.
 func CreateConfig() *Config {
 	return &Config{
-		Mode:         "block",
-		AllowPrivate: "true",
-		BlockUnknown: "false",
-		StatusCode:   "403",
+		Mode:                 "block",
+		AllowPrivate:         "true",
+		BlockUnknown:         "false",
+		StatusCode:           "403",
+		AllowMissingDatabase: "false",
 	}
 }
 
@@ -311,7 +317,14 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 	db, err := getDatabase(config.DatabaseFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("could not load database: %w", err)
+		// Only a missing file can be tolerated, and only on explicit request.
+		// A malformed database is always an error. On error db is nil, and a
+		// middleware without database passes all requests through.
+		if !isTrue(config.AllowMissingDatabase) || !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("could not load database: %w", err)
+		}
+		log.Printf("[ip2locationgeoblock] WARNING middleware %q: database %q not found, "+
+			"allowMissingDatabase=true: requests are NOT filtered", name, config.DatabaseFilePath)
 	}
 
 	g := &GeoBlock{
@@ -389,6 +402,12 @@ func (g *GeoBlock) clientIP(req *http.Request) net.IP {
 }
 
 func (g *GeoBlock) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if g.db == nil {
+		// Only possible with allowMissingDatabase=true (see New).
+		g.next.ServeHTTP(rw, req)
+		return
+	}
+
 	ip := g.clientIP(req)
 	if ip == nil {
 		log.Printf("[ip2locationgeoblock/%s] could not determine client IP", g.name)

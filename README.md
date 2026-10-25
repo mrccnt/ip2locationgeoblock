@@ -40,6 +40,7 @@ All options are strings, so they work with labels without list syntax or type co
 | `blockUnknown` | `false` | Deny IPs that have no country mapping. Note: in `allow` mode, unknown IPs pass unless this is `true`. |
 | `trustForwardedHeader` | `false` | Take the client IP from `X-Forwarded-For`. Only enable behind a trusted proxy. |
 | `statusCode` | `403` | HTTP status code returned for blocked requests. |
+| `allowMissingDatabase` | `false` | If `true` and the database file does not exist, the middleware still starts and passes **all requests unfiltered**. Only meant for the Plugin Catalog validity test (`testData`); never enable it in production. A malformed database is always an error. |
 
 ## Installation
 
@@ -52,6 +53,21 @@ experimental:
     ip2locationgeoblock:
       moduleName: github.com/mrccnt/ip2locationgeoblock
 ```
+
+### Static configuration (from the Plugin Catalog)
+
+Once the plugin is listed in the [Traefik Plugin Catalog](https://plugins.traefik.io), declare it with a version instead of mounting the source:
+
+```yaml
+# traefik.yml
+experimental:
+  plugins:
+    ip2locationgeoblock:
+      moduleName: github.com/mrccnt/ip2locationgeoblock
+      version: v1.0.1
+```
+
+Traefik downloads the plugin at startup (internet access required). You still have to mount the database file into the Traefik container; the plugin source mount shown in the `docker-compose.yml` example below is only needed for the local variant. The labels are identical in both variants.
 
 ### docker-compose.yml (Traefik)
 
@@ -151,7 +167,7 @@ Middleware names must be unique. A name such as `geo-dach` must not be defined o
 - **Startup time:** Parsing the CSV in the Yaegi interpreter takes a few seconds the first time a given file version is loaded.
 - **Behind a proxy/CDN (for example Cloudflare):** Only set `trustForwardedHeader=true` if Traefik is reachable exclusively through that proxy. Additionally configure `entryPoints.<name>.forwardedHeaders.trustedIPs`, otherwise a client can forge the header and bypass the blocking.
 - **Database updates:** IP2Location updates the LITE database monthly. After replacing the file, the new version is picked up the next time the middleware is rebuilt (restart or any dynamic configuration change). No restart is needed beyond that. `make update-db` downloads the latest file (see below).
-- **Plugin catalog:** To publish in the Traefik plugin catalog, the repository needs the GitHub topic `traefik-plugin` and a Git tag (for example `v0.1.0`). You then use `experimental.plugins` instead of `localPlugins`.
+- **Plugin catalog:** The repository needs the GitHub topic `traefik-plugin`, a valid `.traefik.yml` with `testData`, a `go.mod` and a Git tag (for example `v1.0.1`). The catalog polls GitHub every 30 minutes and runs the plugin once with `testData`. That test environment has no database file, which is why `.traefik.yml` sets `allowMissingDatabase: "true"`. If the import fails, the catalog opens an issue in the repository and stops retrying until you close it.
 - **License:** The LITE database requires attribution to IP2Location, see [Attribution and database license](#attribution-and-database-license).
 
 ## Development

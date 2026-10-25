@@ -7,3 +7,6 @@ testData:
   databaseFilePath: /plugins/IP2LOCATION-LITE-DB1.IPV6.CSV
   countries: "RU,CN"
   mode: "block"
+  # The catalog validity test runs without a database file. Do NOT set this in
+  # production: without a database, all requests pass unfiltered.
+  allowMissingDatabase: "true"

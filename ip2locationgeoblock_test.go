@@ -120,6 +120,9 @@ func TestCreateConfigDefaults(t *testing.T) {
 	if cfg.Mode != "block" || cfg.AllowPrivate != "true" || cfg.BlockUnknown != "false" || cfg.StatusCode != "403" {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
+	if cfg.AllowMissingDatabase != "false" {
+		t.Fatalf("allowMissingDatabase must default to false, got %q", cfg.AllowMissingDatabase)
+	}
 }
 
 func TestSplitList(t *testing.T) {
@@ -576,5 +579,57 @@ func TestBlockedResponseBody(t *testing.T) {
 	}
 	if strings.TrimSpace(res.body) != http.StatusText(deniedCode) {
 		t.Errorf("body = %q", res.body)
+	}
+}
+
+func TestAllowMissingDatabase(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.csv")
+
+	// Without the option a missing database is an error (fail closed).
+	if _, err := New(context.Background(), http.NotFoundHandler(), baseConfig(missing), "test"); err == nil {
+		t.Fatal("expected an error for a missing database")
+	}
+
+	// "false" and unparsable values behave like the default.
+	for _, v := range []string{"false", "maybe"} {
+		cfg := baseConfig(missing)
+		cfg.AllowMissingDatabase = v
+		if _, err := New(context.Background(), http.NotFoundHandler(), cfg, "test"); err == nil {
+			t.Errorf("allowMissingDatabase=%q: expected an error", v)
+		}
+	}
+
+	// With the option the middleware starts and passes everything through.
+	cfg := baseConfig(missing)
+	cfg.AllowMissingDatabase = "true"
+	res := serve(t, cfg, "5.1.1.1:1234", nil)
+	if res.code != okCode || !res.nextCalled {
+		t.Errorf("missing database: status = %d, next called = %v, want pass-through", res.code, res.nextCalled)
+	}
+
+	// Other configuration errors are still reported.
+	bad := baseConfig(missing)
+	bad.AllowMissingDatabase = "true"
+	bad.Mode = "maybe"
+	if _, err := New(context.Background(), http.NotFoundHandler(), bad, "test"); err == nil {
+		t.Error("expected an error for an invalid mode")
+	}
+
+	// A malformed database is never tolerated.
+	malformed := filepath.Join(t.TempDir(), "bad.csv")
+	if err := os.WriteFile(malformed, []byte("1,2\"x,3\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg = baseConfig(malformed)
+	cfg.AllowMissingDatabase = "true"
+	if _, err := New(context.Background(), http.NotFoundHandler(), cfg, "test"); err == nil {
+		t.Error("expected an error for a malformed database")
+	}
+
+	// An existing database is still used for filtering.
+	cfg = baseConfig(testDBPath(t))
+	cfg.AllowMissingDatabase = "true"
+	if res := serve(t, cfg, "5.1.1.1:1234", nil); res.code != deniedCode {
+		t.Errorf("existing database: status = %d, want %d", res.code, deniedCode)
 	}
 }
