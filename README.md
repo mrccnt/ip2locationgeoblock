@@ -167,6 +167,7 @@ Middleware names must be unique. A name such as `geo-dach` must not be defined o
 ## Notes
 
 - **All options are strings** (`countries=RU,CN`, `allowPrivate=true`). This avoids problems with list syntax and type conversion in labels.
+- **HTTP routers only:** Traefik plugins can only be HTTP middlewares, so this plugin works with `http.routers` but not with `tcp.routers` or `udp.routers`. For TCP traffic, use an HTTP router if the traffic is actually HTTP(S) (for example TLS terminated in front of an HTTP backend), Traefik's built-in TCP `ipAllowList` with country CIDR ranges (allow-list only), or filter before Traefik (firewall, cloud provider).
 - **Memory and loading:** The database (about 20-40 MB in memory for DB1) is **not** loaded per request; each request is only a binary search in memory. Traefik instantiates a middleware once per router that references it, and rebuilds it on every dynamic configuration change (for example when a container starts or stops). To avoid loading the CSV each time, the plugin keeps **one shared copy per database file** (keyed by path, modification time and size). All middleware instances, including those with different country lists, share it. The log line `loaded ...` should therefore appear only once per file version.
 - **Shared middleware:** A shared middleware does not save memory on its own (that is what the cache does), but it keeps the configuration in a single place.
 - **Startup time:** Parsing the CSV in the Yaegi interpreter takes a few seconds the first time a given file version is loaded.
